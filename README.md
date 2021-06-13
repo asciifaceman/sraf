@@ -17,11 +17,22 @@ Linux am64 - NASM
 
 `make build`
 
+or
+
+`make build-dev` for symbols
+
 # Run
 
 `target/sraf {path_to_file}`
 
-# Limitations
+# Limitations / Bugs
 
-* The filepath can't exceed 255 byes/characters.
+* Limitations
+  * The filepath can't exceed 255 byes/characters.
+
+* Bugs
+  * It seems to die on certain files (it can read 1mb.txt, sraf.asm, but not util.asm)
+    * error occurs during slen, at `cmp byte [rdi], 0`
+    * repro: `target/sraf util.asm`
+
 

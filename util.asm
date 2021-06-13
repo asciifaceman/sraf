@@ -69,6 +69,16 @@ sprintLF:
   pop rdi         ; restore the original pre-function state
   ret
 
+newline:          ; the same as sprintLF but only the newline
+  push rdi
+  mov rdi, 0Ah
+  push rdi
+  mov rdi, rsp
+  call sprint
+  pop rdi
+  pop rdi
+  ret
+
 ;-------------------------------------
 ; void validateArgumentLength(String message)
 ; Makes sure our input string isn't longer than 255 bytes to avoid truncation
@@ -127,19 +137,62 @@ error:
 
 ;-------------------------------------
 ; int Open(String filepath)
-; Returns a file descriptor of the given filepath
+; accepts: filename/path on rdi
+; returns: file descriptor on rax
 open:
-  push rdx
-  push rdi
-  mov rdi, [pathInput]
+  push rsi        ; preserve rsi since we are going to use it
 
-  mov rax, 2      ; sys_open syscall
-  mov rdx, 0      ; readonly access mode
+  mov rax, 2      ; sys_open on rax
+  xor rsi, rsi    ; clear rsi for readonly flag
   syscall
 
-  mov rdi, rax
-  call sprintLF
-  pop rdi
-  pop rdx
+  pop rsi
+  ret
 
+;-------------------------------------
+; void readAndPrint(int fd)
+; accepts: file descriptor on rdi
+; reads a buffered chunk from the given fd, prints
+; then loops until EOF
+readAndPrint:
+  push rbx            ; preserve rbx
+  mov rbx, bufflen    ; move our buffer length on to rbx
+
+.bufferedFileRead:
+  mov rax, 0          ; sys_read
+  mov rsi, readBuf    ; assign our 2kb byte buffer
+  mov rdx, bufflen    ; size of our buffer (how much to read)
+  syscall
+
+  test rax, rax       ; check for error (-1) or EOF (0)
+  jz .done            ; if EOF we're done
+  jle .errored        ; if < 0 we're errored
+
+.print_result:
+  push rdi            ; preserve rdi
+  mov rdi, readBuf    ; move our buffer address into rdi
+  call sprint         ; print the content at teh address
+  pop rdi             ; restore rdi
+
+
+.seek_offset:
+  mov rax, 8          ; sys_lseek
+  mov rsi, bufflen    ; our buffer length to move by
+  mov rdx, rbx        ; offset is our cumulative buffer size over loops
+  syscall
+
+  add rbx, [bufflen]  ; grow the offset by the buffer size
+
+  jmp .bufferedFileRead ; loop
+
+.errored:
+  mov rdi, errRead
+  call error
+
+.done:
+  pop rbx
+  call newline
+  call newline
+  mov rdi, msg
+  call sprintLF
   ret

@@ -17,15 +17,16 @@ segment .data
   errArgCount   db    'Incorrect number of arguments.', 0h
   errArgLen     db    'Given path is too long and would be truncated. Max size: 255 characters.', 0h
   errUndef      db    'An undefined error occured', 0h
+  errUnread     db    'An error occured while opening the file, does it exist?', 0h
+  errRead       db    'An error occured while reading the file.', 0h
   msg           db    'Operation completed successfully.', 0h
-
+  loopmsg       db    'looping...', 0h
+  bufflen       dw    2048  ; size of our buffer to be used for read
 
 segment .bss
-;pathInput   resb  255   ; reserve a 255 byte space in memory for the user input
-;contents   resb  4096
-
 pathInput   resb  255,
-contents    resb  4096,
+;contents    resb  4096,
+readBuf     resb  2048    ; reserve 2kb byte buffer for read
 
 segment .text
 global _start
@@ -44,25 +45,14 @@ _start:
 
   mov [pathInput], rdi  ; store our filepath in our reserved space
   
-  ; open file and get descriptor
-  mov rax, 2        ; sys_open
-  xor rsi, rsi      ; readonly
-  syscall
+  call open         ; open filename on rdi and get fd back in rax
+  test rax, rax     ; test result of open and die if its dead
+  jle .derp         ; derp out if -1 (failed open)
 
-  cmp rax, 0        ; compare result to 0
-  jle .derp         ; if it is lower, like -1, use our temporary error
-
-  mov rdi, rax      ; lets pass our FD in
-  mov rax, 0        ; sys_read
-  mov rsi, contents ; buffer for the contents
-  mov rdx, 4096     ; were fetching 4096 bytes because fuck you
-  syscall           ; JUST DO IT
-
-  mov rdi, contents ; move our buffer on to rdi
-  call sprintLF     ; print that shit
-
+  mov rdi, rax        ; pass our fd in
+  call readAndPrint
   call quit ; happy ending
 
 .derp:
-  mov rdi, errUndef
+  mov rdi, errUnread
   call error
